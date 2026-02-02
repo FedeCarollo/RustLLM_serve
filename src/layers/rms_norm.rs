@@ -29,6 +29,7 @@ impl RMSNormLayer {
 
 impl Layer for RMSNormLayer {
     fn forward(&self, input: &Tensor) -> CandleResult<Tensor> {
+        let input = input.to_device(&self.device)?;
         let orig_dtype = input.dtype();
 
         let input = input.to_dtype(candle_core::DType::F32)?;

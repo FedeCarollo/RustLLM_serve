@@ -130,9 +130,10 @@ impl CausalSelfAttentionLayer {
 
 impl Layer for CausalSelfAttentionLayer {
     fn forward(&self, input: &candle_core::Tensor) -> CandleResult<candle_core::Tensor> {
-                let q = self.q_proj.forward(input)?;
-        let k = self.k_proj.forward(input)?;
-        let v = self.v_proj.forward(input)?;
+        let input = input.to_device(&self.device)?;
+        let q = self.q_proj.forward(&input)?;
+        let k = self.k_proj.forward(&input)?;
+        let v = self.v_proj.forward(&input)?;
 
         let head_dim = self.hidden_size / self.n_heads;
         let n_rep = self.n_heads / self.n_kv_heads;
