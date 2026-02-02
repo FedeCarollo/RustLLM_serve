@@ -1,41 +1,29 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
+#[allow(unused)]
 pub struct ModelConfig {
-    architectures: Vec<String>,
-    attention_bias: bool,
-    bos_token_id: i32,
-    eos_token_id: i32,
-    
+    pub architectures: Vec<String>,
+    pub attention_bias: bool,
+    pub bos_token_id: i32,
+    pub eos_token_id: i32,
     #[serde(rename = "hidden_act")]
-    hidden_activation: String,
-
-    hidden_size: usize,
-    initializer_range: f32,
-
-    intermediate_size: usize,
-    max_position_embeddings: usize,
-
-    model_type: String,
-
-    num_attention_heads: usize,
-    num_hidden_layers: usize,
-
-    num_key_value_heads: usize,
-    pretraining_tp: usize,
-
-    rms_norm_eps: f32,
-
+    pub hidden_activation: String,
+    pub hidden_size: usize,
+    pub initializer_range: f32,
+    pub intermediate_size: usize,
+    pub max_position_embeddings: usize,
+    pub model_type: String,
+    pub num_attention_heads: usize,
+    pub num_hidden_layers: usize,
+    pub num_key_value_heads: usize,
+    pub pretraining_tp: usize,
+    pub rms_norm_eps: f32,
     // rope_scaling: Option<>,
-
-    rope_theta: f32,
-
-    tie_word_embeddings: bool,
-
-    torch_dtype: String,
-
-    transformers_version: String,
-
-    use_cache: bool,
-    vocab_size: usize,
+    pub rope_theta: f32,
+    pub tie_word_embeddings: bool,
+    pub torch_dtype: String,
+    pub transformers_version: String,
+    pub use_cache: bool,
+    pub vocab_size: usize,
 }
