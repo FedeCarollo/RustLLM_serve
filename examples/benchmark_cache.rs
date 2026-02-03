@@ -102,7 +102,7 @@ fn main() -> Result<(), Error> {
     println!("   Prompt processed, generating tokens...");
     
     // Subsequent passes: only process one new token at a time
-    for i in 1..1 {
+    for i in 1..2 {
         let single_token_tensor = candle_core::Tensor::from_slice(&[next_token], &[1, 1], &device)?;
         let position = cached_ids.len() - 1;
         output = model.forward_with_cache(&single_token_tensor, &mut kv_caches, position)?;
