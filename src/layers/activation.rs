@@ -25,3 +25,15 @@ impl Activation {
         }
     }
 }
+
+impl From<&str> for Activation {
+    fn from(name: &str) -> Self {
+        Activation::from_str(name)
+    }
+}
+
+impl From<&String> for Activation {
+    fn from(name: &String) -> Self {
+        Activation::from_str(name)
+    }
+}
