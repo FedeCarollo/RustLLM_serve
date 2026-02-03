@@ -2,5 +2,8 @@ pub mod activation;
 pub mod layer;
 pub mod embedding;
 pub mod linear;
+pub mod mlp;
 pub mod causal_self_attention;
+pub mod decoder;
 pub mod rms_norm;
+pub mod lm_head;
