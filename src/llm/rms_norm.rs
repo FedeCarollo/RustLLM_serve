@@ -1,6 +1,6 @@
 use candle_core::{Device, safetensors::MmapedSafetensors, Result as CandleResult, Tensor};
 
-use crate::layers::layer::Layer;
+use crate::llm::layer::Layer;
 
 pub struct RMSNormLayer {
     weights: Tensor,

@@ -1,14 +1,14 @@
 use crate::config::ModelConfig;
-use crate::layers;
-use crate::layers::decoder::DecoderLayer;
-use crate::layers::rms_norm::RMSNormLayer;
-use crate::layers::lm_head::LMHeadLayer;
-use crate::layers::layer::Layer;
+use crate::llm;
+use crate::llm::decoder::DecoderLayer;
+use crate::llm::rms_norm::RMSNormLayer;
+use crate::llm::lm_head::LMHeadLayer;
+use crate::llm::layer::Layer;
 
 use candle_core::{Device, Result as CandleResult, Tensor};
 use candle_core::safetensors::MmapedSafetensors;
 
-use layers::embedding::EmbeddingLayer;
+use llm::embedding::EmbeddingLayer;
 
 
 #[allow(unused)]

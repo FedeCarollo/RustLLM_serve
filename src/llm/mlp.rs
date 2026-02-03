@@ -1,6 +1,6 @@
-use crate::layers::layer::Layer;
-use crate::layers::linear::LinearLayer;
-use crate::layers::activation::Activation;
+use crate::llm::layer::Layer;
+use crate::llm::linear::LinearLayer;
+use crate::llm::activation::Activation;
 use candle_core::{Device, Tensor};
 use candle_core::safetensors::MmapedSafetensors;
 use candle_core::Result as CandleResult;

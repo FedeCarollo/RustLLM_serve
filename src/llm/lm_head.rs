@@ -1,7 +1,7 @@
 use candle_core::{Device, Tensor, Result as CandleResult};
 use candle_core::safetensors::MmapedSafetensors;
 
-use crate::layers::layer::Layer;
+use crate::llm::layer::Layer;
 
 pub struct LMHeadLayer {
     weights: Tensor,

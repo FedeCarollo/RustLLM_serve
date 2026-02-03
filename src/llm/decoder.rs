@@ -1,8 +1,8 @@
 use candle_core::{Device, Result as CandleResult};
 use candle_core::safetensors::MmapedSafetensors;
-use crate::layers::activation::Activation;
-use crate::layers::layer::Layer;
-use crate::{config, layers::{causal_self_attention::CausalSelfAttentionLayer, mlp::MlpLayer, rms_norm::RMSNormLayer}};
+use crate::llm::activation::Activation;
+use crate::llm::layer::Layer;
+use crate::{config, llm::{causal_self_attention::CausalSelfAttentionLayer, mlp::MlpLayer, rms_norm::RMSNormLayer}};
 
 
 pub struct DecoderLayer {

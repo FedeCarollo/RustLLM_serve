@@ -7,3 +7,6 @@ pub mod causal_self_attention;
 pub mod decoder;
 pub mod rms_norm;
 pub mod lm_head;
+pub mod inference;
+
+pub mod models;
