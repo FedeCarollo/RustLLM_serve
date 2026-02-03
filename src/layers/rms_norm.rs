@@ -5,7 +5,6 @@ use crate::layers::layer::Layer;
 pub struct RMSNormLayer {
     weights: Tensor,
     eps: f64,
-    prefix: String,
     device: Device,
 }
 
@@ -16,12 +15,12 @@ impl RMSNormLayer {
         device: &Device,
         eps: f64,
     ) -> CandleResult<Self> {
-        let weights = weights_map.load(&format!("{}.weight", prefix), device)?;
+        let weights = weights_map.load(&format!("{}.weight", prefix), device)?
+            .to_dtype(candle_core::DType::F16)?;
 
         Ok(Self {
             weights,
             eps,
-            prefix: String::from(prefix),
             device: device.clone(),
         })
     }
@@ -30,18 +29,13 @@ impl RMSNormLayer {
 impl Layer for RMSNormLayer {
     fn forward(&self, input: &Tensor) -> CandleResult<Tensor> {
         let input = input.to_device(&self.device)?;
-        let orig_dtype = input.dtype();
-
-        let input = input.to_dtype(candle_core::DType::F32)?;
         let variance = input.sqr()?.mean_keepdim(candle_core::D::Minus1)?;
         let rms = variance.affine(1.0, self.eps as f64)?.sqrt()?;
 
         let inv_rms = rms.recip()?;
         let norm_x = input.broadcast_mul(&inv_rms)?;
 
-        let norm_x_orig = norm_x.to_dtype(orig_dtype)?;
-
-        let out = norm_x_orig.broadcast_mul(&self.weights)?;
+        let out = norm_x.broadcast_mul(&self.weights)?;
 
         Ok(out)
     }

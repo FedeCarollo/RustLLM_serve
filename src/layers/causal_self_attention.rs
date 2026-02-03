@@ -9,7 +9,6 @@ pub struct CausalSelfAttentionLayer {
     k_proj: LinearLayer,
     v_proj: LinearLayer,
     o_proj: LinearLayer,
-    prefix: String,
     n_heads: usize,
     n_kv_heads: usize,
     hidden_size: usize,
@@ -27,17 +26,16 @@ impl CausalSelfAttentionLayer {
         rope_theta: f32,
         device: Device,
     ) -> CandleResult<Self> {
-        let q_proj = LinearLayer::new(weights, &format!("{}.q_proj", prefix), device.clone(), None)?;
-        let k_proj = LinearLayer::new(weights, &format!("{}.k_proj", prefix), device.clone(), None)?;
-        let v_proj = LinearLayer::new(weights, &format!("{}.v_proj", prefix), device.clone(), None)?;
-        let o_proj = LinearLayer::new(weights, &format!("{}.o_proj", prefix), device.clone(), None)?;
+        let q_proj = LinearLayer::new(weights, &format!("{}.q_proj", prefix), device.clone())?;
+        let k_proj = LinearLayer::new(weights, &format!("{}.k_proj", prefix), device.clone())?;
+        let v_proj = LinearLayer::new(weights, &format!("{}.v_proj", prefix), device.clone())?;
+        let o_proj = LinearLayer::new(weights, &format!("{}.o_proj", prefix), device.clone())?;
 
         Ok(Self {
             q_proj,
             k_proj,
             v_proj,
             o_proj,
-            prefix: String::from(prefix),
             n_heads,
             n_kv_heads,
             hidden_size,
@@ -83,16 +81,17 @@ impl CausalSelfAttentionLayer {
 
         // Compute angle(t)
 
-        let t = Tensor::arange(0u32, seq_len as u32, device)?; // (seq_len,)
+        let t = Tensor::arange(0u32, seq_len as u32, device)?
+            .to_dtype(candle_core::DType::F32)?; //(seq_len,)
 
         let freqs = t
             .unsqueeze(1)? // (seq_len, 1)
-            .mul(&inv_freq_tensor.unsqueeze(0)?)?; // (seq_len, half_head_dim)
+            .broadcast_mul(&inv_freq_tensor.unsqueeze(0)?)?; // (seq_len, half_head_dim)
 
         let emb = Tensor::cat(&[&freqs, &freqs], 1)?; // (seq_len, head_dim)
 
-        let cos = emb.cos()?;
-        let sin = emb.sin()?;
+        let cos = emb.cos()?.to_dtype(candle_core::DType::F16)?;
+        let sin = emb.sin()?.to_dtype(candle_core::DType::F16)?;
 
         // final formula: x' = x * cos + rotate_half(x) * sin
 
@@ -121,7 +120,8 @@ impl CausalSelfAttentionLayer {
             .flat_map(|i| (0..seq_len).map(move |j| if j > i { f32::NEG_INFINITY } else { 0.0 }))
             .collect::<Vec<f32>>();
 
-        let mask_tensor = Tensor::from_vec(mask, (seq_len, seq_len), device)?;
+        let mask_tensor = Tensor::from_vec(mask, (seq_len, seq_len), device)?
+            .to_dtype(candle_core::DType::F16)?;
         let mask_tensor = mask_tensor.unsqueeze(0)?.unsqueeze(0)?; // (1, 1, seq_len, seq_len)
 
         Ok(mask_tensor)
@@ -151,17 +151,19 @@ impl Layer for CausalSelfAttentionLayer {
             .reshape((b_sz, seq_len, self.n_kv_heads, head_dim))?
             .transpose(1, 2)?; // (b_sz, n_kv_heads, seq_len, head_dim)
 
-        // Apply RoPE here
+        // Rotary embeddings
         let (q, k) =
             Self::apply_rotary_emb(&q, &k, seq_len, head_dim, self.rope_theta, &self.device)?;
+        
 
         // Repeat KV heads
         let k = Self::repeat_kv(k, n_rep)?;
         let v = Self::repeat_kv(v, n_rep)?;
 
+
         // Scaled dot-product attention
         let scaling = 1.0 / (head_dim as f64).sqrt();
-        let attn_scores = q.matmul(&k.t()?)?.affine(scaling, 0.0)?;
+        let attn_scores = q.matmul(&k.transpose(2, 3)?)?.affine(scaling, 0.0)?;
 
         // Mask for causal attention
         let mask_tensor = Self::create_causal_mask(seq_len, &self.device)?;
