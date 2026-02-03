@@ -6,7 +6,8 @@ use axum::{
 use std::sync::Arc;
 
 use crate::api::models::{HealthResponse, InferenceRequest, InferenceResponse};
-use crate::{AppState, llm};
+use crate::{llm};
+use crate::app_state::AppState;
 
 pub async fn health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
     Json(HealthResponse {

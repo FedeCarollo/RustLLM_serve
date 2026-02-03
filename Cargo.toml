@@ -1,7 +1,11 @@
 [package]
-name = "RustLLM_serve"
+name = "rustllm_serve"
 version = "0.1.0"
 edition = "2024"
+
+[lib]
+name = "RustLLM_serve"
+path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.100"
@@ -24,3 +28,7 @@ tower-http = { version = "0.6", features = ["trace", "cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rand = "0.9.2"
+[[example]]
+name = "benchmark_cache"
+path = "examples/benchmark_cache.rs"
+

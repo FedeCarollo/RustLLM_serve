@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::api::handlers::{health, inference};
-use crate::AppState;
+use crate::app_state::AppState;
 
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()

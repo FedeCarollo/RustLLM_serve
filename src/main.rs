@@ -7,17 +7,12 @@ use hf_hub::api::sync::Api;
 use tokenizers::Tokenizer;
 use std::path::Path;
 
-mod config;
-mod llm;
-mod api;
+use crate::app_state::AppState;
 
-pub struct AppState {
-    pub model: Box<dyn llm::models::Model + Send + Sync>,
-    pub tokenizer: Tokenizer,
-    pub device: Device,
-    pub model_name: String,
-    pub eos_token_id: i64,
-}
+mod api;
+mod app_state;
+mod llm;
+mod config;
 
 #[tokio::main]
 async fn main() -> Result<(), Error>{
@@ -81,7 +76,6 @@ fn load_weights_mmap(path: &Path) -> Result<MmapedSafetensors, Error> {
     Ok(weights)
 }
 
-#[allow(unused)]
 fn load_tokenizer(path: &Path) -> Result<Tokenizer, Error> {
     let tokenizer = Tokenizer::from_file(path.to_str().unwrap()).map_err(|e| anyhow::anyhow!(e))?;
     Ok(tokenizer)

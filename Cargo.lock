@@ -3,26 +3,6 @@
 version = 4
 
 [[package]]
-name = "RustLLM_serve"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "candle-core",
- "candle-nn",
- "hf-hub",
- "rand",
- "serde",
- "serde_json",
- "tokenizers",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -563,9 +543,9 @@ dependencies = [
 
 [[package]]
 name = "float8"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f463a8a37ede13dac13316d1a1eeafa992300906a0c4c7fa1177f366d10bcbf"
+checksum = "719a903cc23e4a89e87962c2a80fdb45cdaad0983a89bd150bb57b4c8571a7d5"
 dependencies = [
  "half",
  "num-traits",
@@ -1866,6 +1846,26 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "rustllm_serve"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "candle-core",
+ "candle-nn",
+ "hf-hub",
+ "rand",
+ "serde",
+ "serde_json",
+ "tokenizers",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

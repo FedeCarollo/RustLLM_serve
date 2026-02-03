@@ -4,6 +4,28 @@ use candle_core::{Device, Tensor};
 use candle_core::safetensors::MmapedSafetensors;
 use candle_core::Result as CandleResult;
 
+/// KV cache for storing key and value tensors across generation steps
+#[derive(Clone)]
+pub struct KVCache {
+    pub k_cache: Option<Tensor>,
+    pub v_cache: Option<Tensor>,
+}
+
+impl KVCache {
+    pub fn new() -> Self {
+        Self {
+            k_cache: None,
+            v_cache: None,
+        }
+    }
+
+    #[allow(unused)]
+    pub fn clear(&mut self) {
+        self.k_cache = None;
+        self.v_cache = None;
+    }
+}
+
 pub struct CausalSelfAttentionLayer {
     q_proj: LinearLayer,
     k_proj: LinearLayer,
@@ -128,12 +150,18 @@ impl CausalSelfAttentionLayer {
     }
 }
 
-impl Layer for CausalSelfAttentionLayer {
-    fn forward(&self, input: &candle_core::Tensor) -> CandleResult<candle_core::Tensor> {
+impl CausalSelfAttentionLayer {
+    /// Forward pass with KV cache support
+    pub fn forward_with_cache(
+        &self,
+        input: &Tensor,
+        kv_cache: &mut KVCache,
+        position: usize,
+    ) -> CandleResult<Tensor> {
         let input = input.to_device(&self.device)?;
         let q = self.q_proj.forward(&input)?;
-        let k = self.k_proj.forward(&input)?;
-        let v = self.v_proj.forward(&input)?;
+        let k_new = self.k_proj.forward(&input)?;
+        let v_new = self.v_proj.forward(&input)?;
 
         let head_dim = self.hidden_size / self.n_heads;
         let n_rep = self.n_heads / self.n_kv_heads;
@@ -144,29 +172,52 @@ impl Layer for CausalSelfAttentionLayer {
         let q = q
             .reshape((b_sz, seq_len, self.n_heads, head_dim))?
             .transpose(1, 2)?; // (b_sz, n_heads, seq_len, head_dim)
-        let k = k
+        let mut k = k_new
             .reshape((b_sz, seq_len, self.n_kv_heads, head_dim))?
             .transpose(1, 2)?; // (b_sz, n_kv_heads, seq_len, head_dim)
-        let v = v
+        let mut v = v_new
             .reshape((b_sz, seq_len, self.n_kv_heads, head_dim))?
             .transpose(1, 2)?; // (b_sz, n_kv_heads, seq_len, head_dim)
 
-        // Rotary embeddings
-        let (q, k) =
+        // Apply rotary embeddings only to the new k tokens
+        let (q, k_rotated) =
             Self::apply_rotary_emb(&q, &k, seq_len, head_dim, self.rope_theta, &self.device)?;
-        
+        k = k_rotated;
+
+        // Update cache with new k, v
+        let total_seq_len = if let Some(ref k_cached) = kv_cache.k_cache {
+            // Concatenate with cached values
+            k = Tensor::cat(&[k_cached, &k], 2)?; // Concatenate on seq_len dimension
+            k.dim(2)?
+        } else {
+            seq_len
+        };
+
+        if let Some(ref v_cached) = kv_cache.v_cache {
+            v = Tensor::cat(&[v_cached, &v], 2)?; // Concatenate on seq_len dimension
+        }
+
+        // Update cache
+        kv_cache.k_cache = Some(k.clone());
+        kv_cache.v_cache = Some(v.clone());
+
 
         // Repeat KV heads
         let k = Self::repeat_kv(k, n_rep)?;
         let v = Self::repeat_kv(v, n_rep)?;
 
-
         // Scaled dot-product attention
         let scaling = 1.0 / (head_dim as f64).sqrt();
         let attn_scores = q.matmul(&k.transpose(2, 3)?)?.affine(scaling, 0.0)?;
 
-        // Mask for causal attention
-        let mask_tensor = Self::create_causal_mask(seq_len, &self.device)?;
+        // Mask for causal attention (only mask the current query positions)
+        let mask_tensor = Self::create_causal_mask(total_seq_len, &self.device)?;
+        // For cached case, we only look at the last seq_len rows of the mask
+        let mask_tensor = if position > 0 {
+            mask_tensor.narrow(2, total_seq_len - seq_len, seq_len)?
+        } else {
+            mask_tensor
+        };
         let attn_scores = attn_scores.broadcast_add(&mask_tensor)?;
 
         // Attention probabilities
@@ -182,5 +233,12 @@ impl Layer for CausalSelfAttentionLayer {
         let output = self.o_proj.forward(&context)?;
 
         Ok(output)
+    }
+}
+
+impl Layer for CausalSelfAttentionLayer {
+    fn forward(&self, input: &candle_core::Tensor) -> CandleResult<candle_core::Tensor> {
+        let mut cache = KVCache::new();
+        self.forward_with_cache(input, &mut cache, 0)
     }
 }

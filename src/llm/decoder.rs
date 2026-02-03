@@ -2,7 +2,7 @@ use candle_core::{Device, Result as CandleResult};
 use candle_core::safetensors::MmapedSafetensors;
 use crate::llm::activation::Activation;
 use crate::llm::layer::Layer;
-use crate::{config, llm::{causal_self_attention::CausalSelfAttentionLayer, mlp::MlpLayer, rms_norm::RMSNormLayer}};
+use crate::{config, llm::{causal_self_attention::{CausalSelfAttentionLayer, KVCache}, mlp::MlpLayer, rms_norm::RMSNormLayer}};
 
 
 pub struct DecoderLayer {
@@ -59,6 +59,24 @@ impl DecoderLayer {
             device: device.clone(),
         })
         
+    }
+
+    pub fn forward_with_cache(
+        &self,
+        input: &candle_core::Tensor,
+        kv_cache: &mut KVCache,
+        position: usize,
+    ) -> CandleResult<candle_core::Tensor> {
+        let input = input.to_device(&self.device)?;
+        let normed_input = self.input_norm.forward(&input)?;
+        let attn_output = self.self_attn.forward_with_cache(&normed_input, kv_cache, position)?;
+        let attn_residual = input.add(&attn_output)?;
+
+        let normed_attn = self.post_attention_norm.forward(&attn_residual)?;
+        let mlp_output = self.mlp.forward(&normed_attn)?;
+        let output = attn_residual.add(&mlp_output)?;
+
+        Ok(output)
     }
 }
 
