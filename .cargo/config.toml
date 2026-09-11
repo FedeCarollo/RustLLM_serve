@@ -1,0 +1,2 @@
+[env]
+CUDA_COMPUTE_CAP = "89"
