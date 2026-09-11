@@ -8,9 +8,8 @@ use hf_hub::api::sync::Api;
 use tokenizers::Tokenizer;
 use std::path::Path;
 
-use RustLLM_serve::llm::models::{Model, LlamaModel};
-use RustLLM_serve::llm::causal_self_attention::KVCache;
-use RustLLM_serve::config;
+use rustllm_serve::llm::models::{Model, LlamaModel};
+use rustllm_serve::config;
 
 fn main() -> Result<(), Error> {
     println!("🔬 KV Cache Benchmark\n");
@@ -33,7 +32,9 @@ fn main() -> Result<(), Error> {
 
     let weights = load_weights_mmap(weights_path.as_path())?;
     let tokenizer = load_tokenizer(tokenizer_path.as_path())?;
-    let model = LlamaModel::new(&weights, &cfg, &device)?;
+    
+    let dtype = candle_core::DType::F32;
+    let model = LlamaModel::new(&weights, &cfg, &device, dtype)?;
 
     println!("✅ Model loaded successfully!\n");
 
@@ -50,7 +51,8 @@ fn main() -> Result<(), Error> {
     let input_ids: Vec<u32> = encoding.get_ids().to_vec();
     
     println!("📝 Prompt tokens: {} tokens", input_ids.len());
-    println!("\n--- Testing generation of 50 tokens ---\n");
+    let num_tokens = 50;
+    println!("\n--- Testing generation of {} tokens ---", num_tokens);
 
     // ========================================
     // TEST 1: Forward WITHOUT cache (baseline)
@@ -61,7 +63,7 @@ fn main() -> Result<(), Error> {
     let mut test_ids = input_ids.clone();
     let start_no_cache = Instant::now();
     
-    for i in 0..1 {
+    for i in 0..num_tokens {
         let test_tensor = candle_core::Tensor::from_slice(&test_ids, &[1, test_ids.len()], &device)?;
         let output = model.forward(&test_tensor)?;
         
@@ -70,14 +72,16 @@ fn main() -> Result<(), Error> {
         let next_token = logits.argmax(0)?.to_scalar::<u32>()?;
         test_ids.push(next_token);
         
-        if (i + 1) % 10 == 0 {
+        if (i + 1) % 5 == 0 {
             println!("   Generated {} tokens...", i + 1);
         }
     }
     
     let time_no_cache = start_no_cache.elapsed();
+    let text_no_cache = tokenizer.decode(&test_ids, true).unwrap_or_default();
+    println!("   📝 Output text: {:?}", text_no_cache);
     println!("   ✅ Completed in: {:.2?}", time_no_cache);
-    println!("   Average time per token: {:.2?}", time_no_cache / 50);
+    println!("   Average time per token: {:.2?}", time_no_cache / num_tokens as u32);
 
     // ========================================
     // TEST 2: Forward WITH cache
@@ -85,14 +89,15 @@ fn main() -> Result<(), Error> {
     println!("\n📊 Test 2: Forward WITH KV cache");
     println!("   (Caching key/value for efficient generation)");
     
-    let mut kv_caches: Vec<KVCache> = vec![KVCache::new(); model.num_layers()];
     let mut cached_ids = input_ids.clone();
+    
+    model.clear_cache(); // Ensure clean slate
     
     let start_with_cache = Instant::now();
     
     // First pass: process all prompt tokens
     let prompt_tensor = candle_core::Tensor::from_slice(&cached_ids, &[1, cached_ids.len()], &device)?;
-    let mut output = model.forward_with_cache(&prompt_tensor, &mut kv_caches, 0)?;
+    let mut output = model.forward_with_cache(&prompt_tensor)?;
     
     // Get first generated token
     let mut logits = output.i((0, output.dim(1)? - 1))?;
@@ -102,23 +107,24 @@ fn main() -> Result<(), Error> {
     println!("   Prompt processed, generating tokens...");
     
     // Subsequent passes: only process one new token at a time
-    for i in 1..2 {
+    for i in 1..num_tokens {
         let single_token_tensor = candle_core::Tensor::from_slice(&[next_token], &[1, 1], &device)?;
-        let position = cached_ids.len() - 1;
-        output = model.forward_with_cache(&single_token_tensor, &mut kv_caches, position)?;
+        output = model.forward_with_cache(&single_token_tensor)?;
         
         logits = output.i((0, output.dim(1)? - 1))?;
         next_token = logits.argmax(0)?.to_scalar::<u32>()?;
         cached_ids.push(next_token);
         
-        if (i + 1) % 10 == 0 {
+        if (i + 1) % 5 == 0 {
             println!("   Generated {} tokens...", i + 1);
         }
     }
     
     let time_with_cache = start_with_cache.elapsed();
+    let text_with_cache = tokenizer.decode(&cached_ids, true).unwrap_or_default();
+    println!("   📝 Output text: {:?}", text_with_cache);
     println!("   ✅ Completed in: {:.2?}", time_with_cache);
-    println!("   Average time per token: {:.2?}", time_with_cache / 50);
+    println!("   Average time per token: {:.2?}", time_with_cache / num_tokens as u32);
 
     // ========================================
     // RESULTS SUMMARY
@@ -126,8 +132,8 @@ fn main() -> Result<(), Error> {
     println!("\n{}", "=".repeat(60));
     println!("📈 BENCHMARK RESULTS");
     println!("{}", "=".repeat(60));
-    println!("Without KV Cache: {:.2?} ({:.2?}/token)", time_no_cache, time_no_cache / 50);
-    println!("With KV Cache:    {:.2?} ({:.2?}/token)", time_with_cache, time_with_cache / 50);
+    println!("Without KV Cache: {:.2?} ({:.2?}/token)", time_no_cache, time_no_cache / num_tokens as u32);
+    println!("With KV Cache:    {:.2?} ({:.2?}/token)", time_with_cache, time_with_cache / num_tokens as u32);
     println!("{}", "-".repeat(60));
     
     let speedup = time_no_cache.as_secs_f64() / time_with_cache.as_secs_f64();
