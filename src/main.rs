@@ -42,7 +42,8 @@ async fn main() -> Result<(), Error>{
 
     let tokenizer = load_tokenizer(tokenizer_path.as_path())?;
 
-    let model = llm::models::LlamaModel::new(&weights, &cfg, &device)?;
+    let dtype = candle_core::DType::F16; // could be extracted from model args later
+    let model = llm::models::LlamaModel::new(&weights, &cfg, &device, dtype)?;
 
     println!("Model loaded successfully!");
 
@@ -53,6 +54,7 @@ async fn main() -> Result<(), Error>{
         device,
         model_name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0".to_string(),
         eos_token_id: cfg.eos_token_id as i64,
+        inference_lock: tokio::sync::Mutex::new(()),
     });
 
     // Create router

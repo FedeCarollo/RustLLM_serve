@@ -27,6 +27,9 @@ pub async fn inference(
     let temperature = payload.temperature.unwrap_or(1.0);
     let seed = payload.seed.unwrap_or(42);
 
+    // Acquire lock to serialize requests (since the KV Cache is globally shared inside the model)
+    let _lock = state.inference_lock.lock().await;
+
     // Generate text
     let generated_ids = llm::inference::generate(
         &prompt,

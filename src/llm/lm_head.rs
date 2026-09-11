@@ -9,9 +9,9 @@ pub struct LMHeadLayer {
 }
 
 impl LMHeadLayer {
-    pub fn new(weights: &MmapedSafetensors, prefix: &str, device: &Device) -> CandleResult<Self> {
+    pub fn new(weights: &MmapedSafetensors, prefix: &str, device: &Device, dtype: candle_core::DType) -> CandleResult<Self> {
         let weights = weights.load(&format!("{}.weight", prefix), device)?
-            .to_dtype(candle_core::DType::F16)?;
+            .to_dtype(dtype)?;
         Ok(Self {
             weights,
             device: device.clone(),            

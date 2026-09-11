@@ -14,9 +14,10 @@ impl RMSNormLayer {
         prefix: &str,
         device: &Device,
         eps: f64,
+        dtype: candle_core::DType,
     ) -> CandleResult<Self> {
         let weights = weights_map.load(&format!("{}.weight", prefix), device)?
-            .to_dtype(candle_core::DType::F16)?;
+            .to_dtype(dtype)?;
 
         Ok(Self {
             weights,

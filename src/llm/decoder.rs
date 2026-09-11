@@ -1,8 +1,8 @@
-use candle_core::{Device, Result as CandleResult};
+use candle_core::{Device, DType, Result as CandleResult};
 use candle_core::safetensors::MmapedSafetensors;
 use crate::llm::activation::Activation;
 use crate::llm::layer::Layer;
-use crate::{config, llm::{causal_self_attention::{CausalSelfAttentionLayer, KVCache}, mlp::MlpLayer, rms_norm::RMSNormLayer}};
+use crate::{config, llm::{causal_self_attention::{CausalSelfAttentionLayer}, mlp::MlpLayer, rms_norm::RMSNormLayer}};
 
 
 pub struct DecoderLayer {
@@ -18,7 +18,9 @@ impl DecoderLayer {
         weights: &MmapedSafetensors,
         prefix: &str,
         config: &config::ModelConfig,
-        device: &Device
+        device: &Device,
+        dtype: DType,
+        max_seq_len: usize,
     ) -> CandleResult<Self> {
         let self_attn = CausalSelfAttentionLayer::new(
             weights,
@@ -28,6 +30,8 @@ impl DecoderLayer {
             config.hidden_size,
             config.rope_theta,
             device.clone(),
+            dtype,
+            max_seq_len,
         )?;
 
         let mlp = MlpLayer::new(
@@ -35,6 +39,7 @@ impl DecoderLayer {
             &format!("{}.mlp", prefix),
             device.clone(),
             Activation::from(&config.hidden_activation),
+            dtype,
         )?;
 
         let input_norm = RMSNormLayer::new(
@@ -42,6 +47,7 @@ impl DecoderLayer {
             &format!("{}.input_layernorm", prefix),
             device,
             config.rms_norm_eps as f64,
+            dtype,
         )?;
 
         let post_attention_norm = RMSNormLayer::new(
@@ -49,6 +55,7 @@ impl DecoderLayer {
             &format!("{}.post_attention_layernorm", prefix),
             device,
             config.rms_norm_eps as f64,
+            dtype,
         )?;
 
         Ok(Self {
@@ -64,12 +71,10 @@ impl DecoderLayer {
     pub fn forward_with_cache(
         &self,
         input: &candle_core::Tensor,
-        kv_cache: &mut KVCache,
-        position: usize,
     ) -> CandleResult<candle_core::Tensor> {
         let input = input.to_device(&self.device)?;
         let normed_input = self.input_norm.forward(&input)?;
-        let attn_output = self.self_attn.forward_with_cache(&normed_input, kv_cache, position)?;
+        let attn_output = self.self_attn.forward_with_cache(&normed_input)?;
         let attn_residual = input.add(&attn_output)?;
 
         let normed_attn = self.post_attention_norm.forward(&attn_residual)?;
@@ -83,20 +88,13 @@ impl DecoderLayer {
 impl Layer for DecoderLayer {
     fn forward(&self, input: &candle_core::Tensor) -> CandleResult<candle_core::Tensor> {
         let input = input.to_device(&self.device)?;
-        println!("Input moved to device.");
         let normed_input = self.input_norm.forward(&input)?;
-        println!("Input normalized.");
         let attn_output = self.self_attn.forward(&normed_input)?;
-        println!("Self-attention output computed.");
         let attn_residual = input.add(&attn_output)?;
-        println!("Attention residual added.");
 
         let normed_attn = self.post_attention_norm.forward(&attn_residual)?;
-        println!("Post-attention normalization completed.");
         let mlp_output = self.mlp.forward(&normed_attn)?;
-        println!("MLP output computed.");
         let output = attn_residual.add(&mlp_output)?;
-        println!("Final output computed.");
 
         Ok(output)
     }

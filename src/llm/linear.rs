@@ -15,12 +15,13 @@ impl LinearLayer {
         weights_map: &MmapedSafetensors, 
         prefix: &str, 
         device: Device,
+        dtype: candle_core::DType,
     ) -> CandleResult<Self> {
         let weights = weights_map.load(&format!("{}.weight", prefix), &device)?
-            .to_dtype(candle_core::DType::F16)?;
+            .to_dtype(dtype)?;
 
         let bias = if weights_map.contains_tensor(&format!("{}.bias", prefix)) {
-            Some(weights_map.load(&format!("{}.bias", prefix), &device)?)
+            Some(weights_map.load(&format!("{}.bias", prefix), &device)?.to_dtype(dtype)?)
         } else {
             None
         };

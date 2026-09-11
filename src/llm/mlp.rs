@@ -19,21 +19,25 @@ impl MlpLayer {
         prefix: &str,
         device: Device,
         activation: Activation,
+        dtype: candle_core::DType,
     ) -> CandleResult<Self> {
         let gate_proj = LinearLayer::new(
             weights_map,
             &format!("{}.gate_proj", prefix),
             device.clone(),
+            dtype,
         )?;
         let up_proj = LinearLayer::new(
             weights_map,
             &format!("{}.up_proj", prefix),
             device.clone(),
+            dtype,
         )?;
         let down_proj = LinearLayer::new(
             weights_map,
             &format!("{}.down_proj", prefix),
             device.clone(),
+            dtype,
         )?;
         Ok(Self {
             gate_proj,
