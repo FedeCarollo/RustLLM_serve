@@ -120,7 +120,8 @@ mod tests {
         
         // Assert that cache length equals generated sequence length
         let cache_len = model.get_cache_len();
-        assert_eq!(cache_len, generated_ids.len());
+        // cache_len is total tokens fed to the model, which is generated_ids.len() - 1 (the last generated token is not fed back)
+        assert_eq!(cache_len + 1, generated_ids.len());
         
         Ok(())
     }
