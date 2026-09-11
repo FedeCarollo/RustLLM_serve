@@ -9,4 +9,5 @@ pub struct AppState {
     pub device: Device,
     pub model_name: String,
     pub eos_token_id: i64,
+    pub inference_lock: tokio::sync::Mutex<()>,
 }
