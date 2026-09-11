@@ -1,201 +1,51 @@
-# RustLLM_serve
+# Custom LLM Inference Engine (Rust)
 
-🦀 Lightweight HTTP server in Rust to run LLM models on edge without requiring expensive compute and dependencies.
+A high-performance LLM inference engine built from scratch in Rust. This project was developed to explore and master the deep mechanics of Large Language Models (specifically LLaMA architectures like TinyLlama) by bypassing high-level abstractions and working directly with bare-metal tensor primitives.
 
-## ✨ Features
+## 🚀 Key Features
 
-- **Minimal Dependencies**: Built with Candle ML framework - no PyTorch or heavy ML frameworks required
-- **HTTP API**: Simple REST API with Axum for easy integration
-- **CUDA Support**: Optional GPU acceleration (just uncomment in `Cargo.toml`)
-- **Temperature & Seed Control**: Fine-tune generation behavior
-- **Auto Model Download**: Automatically fetches models from Hugging Face Hub
-- **CORS Enabled**: Ready for web application integration
+*   **From-Scratch Architecture:** Manually implemented the full forward pass, including Rotary Positional Embeddings (RoPE), RMSNorm, and Attention mechanisms using HuggingFace's `candle-core`.
+*   **High-Performance KV Cache:** Engineered a pre-allocated Key-Value Cache that performs zero-copy, in-place tensor updates (`slice_set`). This eliminates memory reallocation bottlenecks during auto-regressive decoding, achieving up to a **14x speedup** on long sequences (tested on NVIDIA RTX 5060 / CUDA).
+*   **Thread-Safe Concurrency:** Integrated the model into a fully concurrent backend. Utilizes `RwLock` for internal cache state and `tokio::sync::Mutex` to serialize generation requests, ensuring memory safety across concurrent API calls.
+*   **REST API:** Wrapped the inference engine in a fast, asynchronous Axum web server to easily serve text generation requests.
 
-## 🚀 Quick Start
+## 🛠️ Prerequisites
 
-### Prerequisites
+*   Rust (`cargo`)
+*   CUDA Toolkit (for GPU acceleration)
 
-- Rust 1.70+ (install from [rustup.rs](https://rustup.rs))
-- (Optional) CUDA 11.8+ for GPU acceleration
+*Note: If you are using a very modern GPU architecture (e.g., Blackwell) with an older CUDA Toolkit, ensure `CUDA_COMPUTE_CAP` is correctly set in your environment or `.cargo/config.toml` (e.g., `CUDA_COMPUTE_CAP="89"`).*
 
-### Installation
+## 🏎️ Quick Start
+
+1. **Run the server:**
+   ```bash
+   cargo run --release
+   ```
+   The server will automatically download the TinyLlama-1.1B weights via HuggingFace Hub on the first run and load them into GPU memory.
+
+2. **Generate Text:**
+   Send a POST request to the `/inference` endpoint:
+   ```bash
+   curl -X POST http://127.0.0.1:3000/inference \
+        -H "Content-Type: application/json" \
+        -d '{"prompt": "Hello, my name is Rust and I", "max_tokens": 50, "temperature": 0.7}'
+   ```
+
+3. **Check Health:**
+   ```bash
+   curl http://127.0.0.1:3000/health
+   ```
+
+## 📊 Benchmark
+
+Included is an isolated benchmark to test the speedup provided by the custom KV Cache implementation.
 
 ```bash
-git clone https://github.com/yourusername/RustLLM_serve.git
-cd RustLLM_serve
-cargo build --release
+cargo run --release --example benchmark_cache
 ```
 
-### Run the Server
-
-```bash
-cargo run --release
-```
-
-The server will start on `http://0.0.0.0:3000` and automatically download the TinyLlama model on first run.
-
-## 📡 API Endpoints
-
-### Health Check
-
-Check if the server is running and which model is loaded.
-
-**Endpoint:** `GET /health`
-
-**Example:**
-```bash
-curl http://localhost:3000/health
-```
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-}
-```
-
-### Text Generation (Inference)
-
-Generate text completion from a prompt.
-
-**Endpoint:** `POST /inference`
-
-**Request Body:**
-```json
-{
-  "prompt": "Hello, my name is",
-  "max_tokens": 50,
-  "temperature": 0.8,
-  "seed": 42
-}
-```
-
-**Parameters:**
-- `prompt` (required): Input text to complete
-- `max_tokens` (optional): Maximum tokens to generate (default: 50, max: 1024)
-- `temperature` (optional): Sampling temperature 0.01-100.0 (default: 1.0)
-  - Lower values → more deterministic
-  - Higher values → more creative/random
-- `seed` (optional): Random seed for reproducibility (default: 42)
-
-**Example:**
-```bash
-curl -X POST http://localhost:3000/inference \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "The future of AI is",
-    "max_tokens": 100,
-    "temperature": 0.7
-  }'
-```
-
-**Response:**
-```json
-{
-  "generated_text": "The future of AI is bright and full of possibilities..."
-}
-```
-
-## 🔧 Configuration
-
-### Enable CUDA (GPU Acceleration)
-
-Edit `Cargo.toml` and uncomment the CUDA features:
-
-```toml
-# Comment these lines:
-# candle-core = "0.9.2"
-# candle-nn = "0.9.2"
-
-# Uncomment these lines:
-candle-core = { version = "0.9.2", features = ["cuda"] }
-candle-nn = { version = "0.9.2", features = ["cuda"] }
-```
-
-### Change Model
-
-In `src/main.rs`, modify the model repository:
-
-```rust
-let repo_id = api.model("TinyLlama/TinyLlama-1.1B-Chat-v1.0".to_string());
-// Change to any compatible Llama-architecture model from Hugging Face
-```
-
-### Change Server Port
-
-In `src/main.rs`:
-
-```rust
-let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-// Change port as needed
-```
-
-## 🏗️ Project Structure
-
-```
-RustLLM_serve/
-├── src/
-│   ├── main.rs              # Server initialization and model loading
-│   ├── config.rs            # Model configuration structures
-│   ├── api/
-│   │   ├── handlers.rs      # HTTP request handlers
-│   │   ├── models.rs        # Request/Response models
-│   │   └── server.rs        # Router configuration
-│   └── llm/
-│       ├── models.rs        # LLM model trait and implementations
-│       ├── inference.rs     # Text generation logic
-│       ├── decoder.rs       # Transformer decoder
-│       ├── attention.rs     # Self-attention mechanism
-│       ├── embedding.rs     # Token embeddings
-│       └── ...              # Other model components
-├── Cargo.toml
-└── README.md
-```
-
-## 🧪 Testing
-
-Test the health endpoint:
-```bash
-curl http://localhost:3000/health
-```
-
-Test inference:
-```bash
-curl -X POST http://localhost:3000/inference \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Once upon a time", "max_tokens": 50}'
-```
-
-## 🔍 Logging
-
-The server uses `tracing` for structured logging. Logs include:
-- Model loading progress
-- Inference requests and responses
-- HTTP request traces
-
-Set log level via environment variable:
-```bash
-RUST_LOG=debug cargo run
-```
-
-## ⚡ Performance Tips
-
-1. **Use Release Mode**: Always run with `--release` for production
-2. **Enable CUDA**: GPU acceleration provides 10-100x speedup
-3. **Adjust max_tokens**: Lower values = faster responses
-4. **Batch Requests**: The server handles concurrent requests efficiently
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 🙏 Acknowledgments
-
-- Built with [Candle](https://github.com/huggingface/candle) - Hugging Face's Rust ML framework
-- Uses [Axum](https://github.com/tokio-rs/axum) for HTTP server
-- Models from [Hugging Face Hub](https://huggingface.co/)
+**Results (50 tokens) in local:**
+*   Without KV Cache: ~10.0s (195ms/token)
+*   With KV Cache: ~0.68s (13ms/token)
+*   **Speedup:** ~14.2x faster 🚀
