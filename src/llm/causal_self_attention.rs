@@ -28,6 +28,7 @@ impl KVCache {
     pub fn clear(&mut self) {
         self.k_cache = None;
         self.v_cache = None;
+        self.current_seq_len = 0;
     }
 }
 
